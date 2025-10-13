@@ -1,0 +1,7 @@
+Flask
+waitress
+Flask
+waitress
+pandas
+requests
+Pillow
