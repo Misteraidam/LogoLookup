@@ -11,6 +11,8 @@ Logo Preview Pro (Enhanced Version)
 ✅ NEW: Display ALL logos for each brand (grid view)
 ✅ NEW: Individual logo upload button per brand
 ✅ NEW: White backgrounds for better logo visibility
+✅ NEW: Delete individual logos
+✅ FIXED: Add brand endpoint connection
 """
 
 import os
@@ -113,10 +115,13 @@ input[type=search]{width:220px;}
 .imageWrap{min-height:130px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:8px;overflow:hidden;margin-bottom:8px;padding:8px;}
 .imageWrap img{max-width:100%;max-height:120px;object-fit:contain;}
 .logo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin-top:8px;margin-bottom:8px;}
-.logo-item{position:relative;height:100px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:6px;border:1px solid #333;overflow:hidden;cursor:pointer;transition:all 0.2s;}
+.logo-item{position:relative;height:100px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:6px;border:1px solid #333;overflow:hidden;transition:all 0.2s;}
 .logo-item:hover{border-color:var(--accent);transform:scale(1.05);}
 .logo-item.marked::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(220,20,60,0.7);pointer-events:none;}
-.logo-item img{max-width:90%;max-height:90%;object-fit:contain;}
+.logo-item img{max-width:90%;max-height:90%;object-fit:contain;cursor:pointer;}
+.logo-delete{position:absolute;top:2px;right:2px;background:rgba(220,20,60,0.9);color:#fff;border:none;border-radius:4px;padding:2px 6px;font-size:12px;cursor:pointer;opacity:0;transition:opacity 0.2s;z-index:10;}
+.logo-item:hover .logo-delete{opacity:1;}
+.logo-delete:hover{background:rgba(180,0,30,1);}
 .icon-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;padding:2px 4px;}
 .icon-btn:hover{color:#fff;}
 .btn{cursor:pointer;}
@@ -165,15 +170,16 @@ document.getElementById('loginBtn').onclick=async ()=>{
   const pw=prompt('Enter admin password:'); if(!pw)return;
   const res=await fetch('/admin_login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
   if(!res.ok){alert('Login failed');return;}
-  const j=await res.json();adminToken=j.token;saveAdminToken();setAdminUI(true);alert('Admin unlocked');
+  const j=await res.json();adminToken=j.token;saveAdminToken();setAdminUI(true);alert('Admin unlocked');reloadCurrent();
 };
 
 document.getElementById('logoutBtn').onclick=async ()=>{
   if(adminToken)await fetch('/admin_logout',{method:'POST',headers:{'X-Admin-Token':adminToken}});
-  adminToken=null;saveAdminToken();setAdminUI(false);alert('Logged out');
+  adminToken=null;saveAdminToken();setAdminUI(false);alert('Logged out');reloadCurrent();
 };
 
 document.getElementById('addBrandBtn').onclick=()=>{
+  if(!currentBatch){alert('Please select a batch first!');return;}
   const name=prompt('New brand name:');if(!name)return;
   const fileInput=document.createElement('input');fileInput.type='file';fileInput.accept='image/*';
   fileInput.onchange=e=>uploadBrand(name,e.target.files[0]);
@@ -194,7 +200,18 @@ async function uploadBrand(name,file){
   xhr.open('POST','/add_brand');
   xhr.setRequestHeader('X-Admin-Token',adminToken);
   xhr.upload.onprogress=(e)=>{if(e.lengthComputable){fill.style.width=(e.loaded/e.total*100)+'%';}};
-  xhr.onload=()=>{progressBar.remove();reloadCurrent();};
+  xhr.onload=()=>{
+    progressBar.remove();
+    if(xhr.status===200){
+      reloadCurrent();
+    }else{
+      alert('Upload failed: '+xhr.responseText);
+    }
+  };
+  xhr.onerror=()=>{
+    progressBar.remove();
+    alert('Upload failed!');
+  };
   xhr.send(fd);
 }
 
@@ -220,10 +237,27 @@ async function uploadAdditionalLogo(brandName){
     xhr.open('POST','/add_brand');
     xhr.setRequestHeader('X-Admin-Token',adminToken);
     xhr.upload.onprogress=(e)=>{if(e.lengthComputable){fill.style.width=(e.loaded/e.total*100)+'%';}};
-    xhr.onload=()=>{progressBar.remove();reloadCurrent();};
+    xhr.onload=()=>{
+      progressBar.remove();
+      if(xhr.status===200){
+        reloadCurrent();
+      }else{
+        alert('Upload failed: '+xhr.responseText);
+      }
+    };
+    xhr.onerror=()=>{
+      progressBar.remove();
+      alert('Upload failed!');
+    };
     xhr.send(fd);
   };
   fileInput.click();
+}
+
+async function deleteIndividualLogo(filename){
+  if(!confirm('Delete this logo: '+filename+'?'))return;
+  const res=await fetch('/delete_logo',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':adminToken},body:JSON.stringify({batch:currentBatch,filename:filename})});
+  if(res.ok)reloadCurrent();else alert('Delete failed');
 }
 
 async function loadBatch(batch){
@@ -273,14 +307,25 @@ function renderGrid(){
       
       const img=document.createElement('img');
       img.src=`/logos/${currentBatch}/${fn}`;
-      logoItem.appendChild(img);
-      
-      logoItem.onclick=()=>{
+      img.onclick=()=>{
         if(!adminToken){alert('Admin login required to mark logos');return;}
         doneMap[logoKey]=!doneMap[logoKey];
         saveDone();
         logoItem.classList.toggle('marked');
       };
+      logoItem.appendChild(img);
+      
+      if(adminToken){
+        const delBtn=document.createElement('button');
+        delBtn.className='logo-delete';
+        delBtn.textContent='✕';
+        delBtn.title='Delete this logo';
+        delBtn.onclick=(e)=>{
+          e.stopPropagation();
+          deleteIndividualLogo(fn);
+        };
+        logoItem.appendChild(delBtn);
+      }
       
       logoList.appendChild(logoItem);
     });
@@ -387,11 +432,30 @@ def add_brand():
     
     brand_key = clean_brand_key(brand)
     existing = [p for p in batch_dir.iterdir() if p.stem.startswith(brand_key)]
-    next_num = len(existing) + 1
     
-    filename = f"{brand_key}_logo{next_num}{Path(file.filename).suffix}"
+    if len(existing) == 0:
+        filename = f"{brand_key}_logo{Path(file.filename).suffix}"
+    else:
+        next_num = len(existing) + 1
+        filename = f"{brand_key}_logo{next_num}{Path(file.filename).suffix}"
+    
     file.save(batch_dir / filename)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "filename": filename})
+
+@app.route("/delete_logo", methods=["POST"])
+def delete_logo():
+    token = request.headers.get("X-Admin-Token")
+    if token not in ADMIN_TOKENS: return jsonify({"error": "Admin required"}), 401
+    data = request.get_json() or {}
+    batch = data.get("batch", "")
+    filename = data.get("filename", "")
+    if not batch or not filename: return jsonify({"error": "Missing data"}), 400
+    batch_dir = STATIC_LOGOS_ROOT / batch
+    logo_path = safe_join(batch_dir, filename)
+    if logo_path.exists():
+        logo_path.unlink()
+        return jsonify({"ok": True})
+    return jsonify({"error": "File not found"}), 404
 
 @app.route("/rename_brand", methods=["POST"])
 def rename_brand():
@@ -405,14 +469,19 @@ def rename_brand():
         return jsonify({"error": "Missing data"}), 400
     batch_dir = STATIC_LOGOS_ROOT / batch
     renamed = []
+    counter = 1
     for p in sorted(batch_dir.iterdir()):
         if p.is_file() and p.stem.startswith(old_key):
             suffix = p.suffix
-            target = batch_dir / f"{new_key}_logo{suffix}"
+            if counter == 1:
+                target = batch_dir / f"{new_key}_logo{suffix}"
+            else:
+                target = batch_dir / f"{new_key}_logo{counter}{suffix}"
             if target.exists():
                 target = batch_dir / f"{new_key}_{uuid.uuid4().int%1000}{suffix}"
             p.rename(target)
             renamed.append((p.name, target.name))
+            counter += 1
     return jsonify({"renamed": renamed})
 
 @app.route("/delete_brand", methods=["POST"])
