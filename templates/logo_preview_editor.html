@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logo Preview & Admin Editor</title>
+<style>
+:root {
+  --bg: #0b0f14;
+  --secondary: #1c1f26;
+  --text: #cfd8dc;
+  --accent: #22c1ff;
+  --mark: #ff1a1a;
+  --done: #ff1a1a;
+}
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+header {
+  background: var(--secondary);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--accent);
+  flex-wrap: wrap;
+}
+h1 {
+  font-size: 1.3rem;
+  color: var(--accent);
+  margin: 0;
+  flex: 1 1 100%;
+  margin-bottom: 0.5rem;
+}
+button, input {
+  border: none;
+  outline: none;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  margin: 0.2rem;
+}
+button:hover {
+  background: #1b9fd8;
+}
+button.danger {
+  background: #e53935;
+}
+button.danger:hover {
+  background: #c62828;
+}
+input {
+  background: var(--secondary);
+  color: var(--text);
+  border: 1px solid #333;
+}
+#grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+.card {
+  background: var(--secondary);
+  border-radius: 12px;
+  padding: 0.7rem;
+  text-align: center;
+  box-shadow: 0 0 4px rgba(0,0,0,0.4);
+  position: relative;
+  transition: 0.2s ease;
+  overflow: hidden;
+  word-wrap: break-word;
+}
+.card img {
+  max-width: 100%;
+  height: 150px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
+.card p {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  word-break: break-word;
+  white-space: normal;
+}
+.card.done {
+  box-shadow: 0 0 0 4px var(--done), 0 0 14px rgba(255,0,0,0.7);
+  transform: scale(1.02);
+}
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+.small.btn {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  background: #333;
+  color: #fff;
+}
+.small.btn.marked {
+  background: var(--done) !important;
+  color: #fff !important;
+  font-weight: 600;
+  border: 1px solid #ff3333 !important;
+}
+#progress-container {
+  width: 100%;
+  background: #222;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+  display: none;
+}
+#progress-bar {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧩 Logo Preview Editor</h1>
+  <div>
+    <button onclick="promptAddBrand()">Add Brand</button>
+    <button onclick="promptRenameBrand()">Rename Brand</button>
+    <button class="danger" onclick="promptDeleteBrand()">Delete Brand</button>
+    <input type="file" id="fileInput" multiple onchange="uploadLogos()" hidden>
+    <button onclick="document.getElementById('fileInput').click()">Upload Logos</button>
+  </div>
+</header>
+
+<div id="progress-container"><div id="progress-bar"></div></div>
+<div id="grid"></div>
+
+<script>
+const API_URL = ""; // same origin as Flask
+const ADMIN_PASSWORD = "password";
+
+let isAdmin = false;
+let enteredPass = prompt("Enter admin password (or leave blank for view-only):");
+if (enteredPass === ADMIN_PASSWORD) {
+  isAdmin = true;
+  alert("Admin mode enabled.");
+}
+
+let doneMap = JSON.parse(localStorage.getItem("doneMap") || "{}");
+const grid = document.getElementById("grid");
+
+async function loadLogos() {
+  grid.innerHTML = "<p>Loading...</p>";
+  try {
+    const res = await fetch(`/logos`);
+    const data = await res.json();
+    renderGrid(data);
+  } catch {
+    grid.innerHTML = "<p style='color:#f44;'>Error loading logos</p>";
+  }
+}
+
+function renderGrid(data) {
+  grid.innerHTML = "";
+  data.forEach(logo => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const doneKey = logo.url;
+    if (doneMap[doneKey]) card.classList.add("done");
+
+    card.innerHTML = `
+      <img src="${logo.url}" alt="${logo.brand}">
+      <p>${logo.brand}</p>
+    `;
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const markBtn = document.createElement("button");
+    markBtn.textContent = doneMap[doneKey] ? "Marked" : "Mark";
+    markBtn.className = "small btn " + (doneMap[doneKey] ? "marked" : "");
+    markBtn.onclick = () => {
+      doneMap[doneKey] = !doneMap[doneKey];
+      saveDone();
+      markBtn.textContent = doneMap[doneKey] ? "Marked" : "Mark";
+      markBtn.classList.toggle("marked", doneMap[doneKey]);
+      card.classList.toggle("done", doneMap[doneKey]);
+    };
+    actions.appendChild(markBtn);
+
+    if (isAdmin) {
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Delete";
+      delBtn.className = "small btn danger";
+      delBtn.onclick = async () => {
+        if (confirm("Delete this logo?")) {
+          await fetch(`/delete_logo`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: logo.url, password: ADMIN_PASSWORD })
+          });
+          loadLogos();
+        }
+      };
+      actions.appendChild(delBtn);
+    }
+
+    card.appendChild(actions);
+    grid.appendChild(card);
+  });
+}
+
+function saveDone() {
+  localStorage.setItem("doneMap", JSON.stringify(doneMap));
+}
+
+async function uploadLogos() {
+  const files = document.getElementById("fileInput").files;
+  if (!files.length) return;
+  const formData = new FormData();
+  for (const file of files) formData.append("logos", file);
+
+  const progressContainer = document.getElementById("progress-container");
+  const progressBar = document.getElementById("progress-bar");
+  progressContainer.style.display = "block";
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", `/upload`);
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) {
+      const percent = (e.loaded / e.total) * 100;
+      progressBar.style.width = percent + "%";
+    }
+  };
+  xhr.onload = () => {
+    progressContainer.style.display = "none";
+    progressBar.style.width = "0%";
+    loadLogos();
+  };
+  xhr.send(formData);
+}
+
+async function promptAddBrand() {
+  if (!isAdmin) return alert("Admin only.");
+  const brand = prompt("Enter new brand name:");
+  if (!brand) return;
+  const res = await fetch(`/add_brand`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ brand, password: ADMIN_PASSWORD })
+  });
+  if (res.ok) loadLogos();
+}
+
+async function promptRenameBrand() {
+  if (!isAdmin) return alert("Admin only.");
+  const oldName = prompt("Old brand name:");
+  const newName = prompt("New brand name:");
+  if (!oldName || !newName) return;
+  const res = await fetch(`/rename_brand`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ oldName, newName, password: ADMIN_PASSWORD })
+  });
+  if (res.ok) loadLogos();
+}
+
+async function promptDeleteBrand() {
+  if (!isAdmin) return alert("Admin only.");
+  const brand = prompt("Enter brand name to delete:");
+  if (!brand) return;
+  if (confirm(`Are you sure you want to delete all logos under "${brand}"?`)) {
+    const res = await fetch(`/delete_brand`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brand, password: ADMIN_PASSWORD })
+    });
+    if (res.ok) loadLogos();
+  }
+}
+
+loadLogos();
+</script>
+</body>
+</html>
