@@ -112,8 +112,8 @@ input[type=search]{width:220px;}
 .brandTitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-weight:600;word-wrap:break-word;overflow-wrap:break-word;}
 .imageWrap{min-height:130px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:8px;overflow:hidden;margin-bottom:8px;padding:8px;}
 .imageWrap img{max-width:100%;max-height:120px;object-fit:contain;}
-.logo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:8px;margin-bottom:8px;}
-.logo-item{position:relative;height:70px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:6px;border:1px solid #333;overflow:hidden;cursor:pointer;transition:all 0.2s;}
+.logo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin-top:8px;margin-bottom:8px;}
+.logo-item{position:relative;height:100px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:6px;border:1px solid #333;overflow:hidden;cursor:pointer;transition:all 0.2s;}
 .logo-item:hover{border-color:var(--accent);transform:scale(1.05);}
 .logo-item.marked::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(220,20,60,0.7);pointer-events:none;}
 .logo-item img{max-width:90%;max-height:90%;object-fit:contain;}
@@ -276,6 +276,7 @@ function renderGrid(){
       logoItem.appendChild(img);
       
       logoItem.onclick=()=>{
+        if(!adminToken){alert('Admin login required to mark logos');return;}
         doneMap[logoKey]=!doneMap[logoKey];
         saveDone();
         logoItem.classList.toggle('marked');
@@ -288,18 +289,20 @@ function renderGrid(){
     const actions=document.createElement('div');
     actions.className='card-actions';
     
-    const markBtn=document.createElement('button');
-    markBtn.textContent=doneMap[doneKey]?'Marked':'Mark All';
-    markBtn.className='small btn';
-    markBtn.style.background=doneMap[doneKey]?'var(--mark)':'var(--secondary)';
-    markBtn.onclick=()=>{
-      doneMap[doneKey]=!doneMap[doneKey];
-      saveDone();
+    if(adminToken){
+      const markBtn=document.createElement('button');
       markBtn.textContent=doneMap[doneKey]?'Marked':'Mark All';
+      markBtn.className='small btn';
       markBtn.style.background=doneMap[doneKey]?'var(--mark)':'var(--secondary)';
-      card.classList.toggle('done');
-    };
-    actions.appendChild(markBtn);
+      markBtn.onclick=()=>{
+        doneMap[doneKey]=!doneMap[doneKey];
+        saveDone();
+        markBtn.textContent=doneMap[doneKey]?'Marked':'Mark All';
+        markBtn.style.background=doneMap[doneKey]?'var(--mark)':'var(--secondary)';
+        card.classList.toggle('done');
+      };
+      actions.appendChild(markBtn);
+    }
     
     if(adminToken){
       const addLogoBtn=document.createElement('button');
