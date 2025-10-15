@@ -10,6 +10,7 @@ Logo Preview Pro (Enhanced Version)
 ✅ NEW: Upload additional logos to existing brands
 ✅ NEW: Display ALL logos for each brand (grid view)
 ✅ NEW: Individual logo upload button per brand
+✅ NEW: White backgrounds for better logo visibility
 """
 
 import os
@@ -109,10 +110,10 @@ input[type=search]{width:220px;}
 .card:hover{transform:translateY(-3px);}
 .card.done{box-shadow:0 0 0 3px var(--mark);}
 .brandTitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-weight:600;word-wrap:break-word;overflow-wrap:break-word;}
-.imageWrap{min-height:130px;display:flex;align-items:center;justify-content:center;background:#07111a;border-radius:8px;overflow:hidden;margin-bottom:8px;padding:8px;}
-.imageWrap img{max-width:100%;max-height:120px;object-fit:contain;filter:brightness(1.3) contrast(1.2);}
+.imageWrap{min-height:130px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:8px;overflow:hidden;margin-bottom:8px;padding:8px;}
+.imageWrap img{max-width:100%;max-height:120px;object-fit:contain;}
 .logo-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:8px;margin-bottom:8px;}
-.logo-item{position:relative;height:70px;display:flex;align-items:center;justify-content:center;background:#07111a;border-radius:6px;border:1px solid #1a1a1a;overflow:hidden;cursor:pointer;transition:all 0.2s;}
+.logo-item{position:relative;height:70px;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:6px;border:1px solid #333;overflow:hidden;cursor:pointer;transition:all 0.2s;}
 .logo-item:hover{border-color:var(--accent);transform:scale(1.05);}
 .logo-item.marked::after{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(220,20,60,0.7);pointer-events:none;}
 .logo-item img{max-width:90%;max-height:90%;object-fit:contain;}
@@ -262,7 +263,6 @@ function renderGrid(){
     }
     card.appendChild(title);
     
-    // Display ALL logos in grid
     const logoList=document.createElement('div');
     logoList.className='logo-list';
     item.files.forEach((fn,idx)=>{
@@ -285,7 +285,6 @@ function renderGrid(){
     });
     card.appendChild(logoList);
     
-    // Card actions
     const actions=document.createElement('div');
     actions.className='card-actions';
     
@@ -383,7 +382,6 @@ def add_brand():
     batch_dir = STATIC_LOGOS_ROOT / batch
     batch_dir.mkdir(exist_ok=True)
     
-    # Find next available number for the brand
     brand_key = clean_brand_key(brand)
     existing = [p for p in batch_dir.iterdir() if p.stem.startswith(brand_key)]
     next_num = len(existing) + 1
